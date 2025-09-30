@@ -3,6 +3,7 @@ package com.amaurypm.persistenciadiplo
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
@@ -15,6 +16,9 @@ import androidx.annotation.ColorRes
 import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import com.amaurypm.persistenciadiplo.databinding.ActivityMainBinding
+import com.amaurypm.persistenciadiplo.encryption.EncryptedPrefs
+import com.amaurypm.persistenciadiplo.encryption.TinkAeadProvider
+import com.google.crypto.tink.Aead
 
 class MainActivity : AppCompatActivity() {
 
@@ -24,6 +28,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navHostFragment: Fragment
 
     private lateinit var sp: SharedPreferences
+
+    private lateinit var aead: Aead
+    private lateinit var encryptedPrefs: EncryptedPrefs
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,8 +48,19 @@ class MainActivity : AppCompatActivity() {
 
         sp = getSharedPreferences(Constants.SP_FILE, Context.MODE_PRIVATE)
 
-        val bgColor = sp.getInt(Constants.BG_COLOR, R.color.white)
+        aead = TinkAeadProvider.aead(this)
+        encryptedPrefs = EncryptedPrefs(sp, aead)
+
+        val bgColor = encryptedPrefs.getInt(Constants.BG_COLOR, R.color.white)
         changeColor(bgColor)
+
+        val textoACifrar = "Diplomado de Desarrollo de Aplicaciones para Dispositivos Móviles Emisión 14"
+        val textoCifrado = aead.encrypt(textoACifrar.toByteArray(Charsets.UTF_8), "dgtic:unam".toByteArray())
+        val textoDescifrado = aead.decrypt(textoCifrado, "dgtic:unam".toByteArray())
+
+        Log.d("APPLOGS", "Texto cifrado: ${textoCifrado.toString(Charsets.UTF_8)}")
+        Log.d("APPLOGS", "Texto descifrado: ${textoDescifrado.toString(Charsets.UTF_8)}")
+
 
         binding.fab.setOnClickListener { view ->
             Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
@@ -90,8 +108,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveColor(@ColorRes color: Int){
-        sp.edit{
-            putInt(Constants.BG_COLOR, color)
-        }
+        encryptedPrefs.putInt(Constants.BG_COLOR, color)
     }
 }
